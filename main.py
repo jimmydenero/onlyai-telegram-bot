@@ -1,21 +1,19 @@
+#!/usr/bin/env python3
 """
-OnlyAi Support - Telegram Bot with RAG and Monitoring
+FastAPI application for the Telegram bot
 """
 
 import os
-import json
 import logging
-from datetime import datetime
-from typing import Dict, Any
-
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
 from dotenv import load_dotenv
+import json
+from datetime import datetime
 
 from bot import TelegramBot
+from rag_service import RAGService
 
-# Load environment variables
 load_dotenv()
 
 # Configure logging
@@ -25,99 +23,147 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Initialize FastAPI app
-app = FastAPI(
-    title="OnlyAi Support Bot",
-    description="Telegram bot with RAG and monitoring capabilities",
-    version="1.0.0"
-)
+app = FastAPI(title="OnlyAi Telegram Bot API")
 
 # Initialize bot
-bot = TelegramBot()
+bot = None
+rag_service = None
 
-# Pydantic models
-class HealthResponse(BaseModel):
-    status: str
-    model: str
-    timestamp: str
-    bot_status: str
+@app.on_event("startup")
+async def startup_event():
+    """Initialize bot on startup."""
+    global bot, rag_service
+    try:
+        bot = TelegramBot()
+        rag_service = RAGService()
+        logger.info("✅ Bot initialized successfully")
+    except Exception as e:
+        logger.error(f"❌ Failed to initialize bot: {e}")
+        raise e
 
 @app.get("/")
-async def health_check() -> HealthResponse:
+async def root():
     """Health check endpoint."""
-    try:
-        return HealthResponse(
-            status="Online",
-            model=os.getenv("OPENAI_MODEL", "gpt-5.0-thinking"),
-            timestamp=datetime.utcnow().isoformat(),
-            bot_status="Active"
-        )
-    except Exception as e:
-        logger.error(f"Health check error: {e}")
-        raise HTTPException(status_code=500, detail="Health check failed")
+    return {"status": "ok", "message": "OnlyAi Telegram Bot API", "timestamp": datetime.utcnow().isoformat()}
 
 @app.get("/status")
-async def bot_status():
-    """Get detailed bot status."""
+async def status():
+    """Get bot status."""
+    if not bot:
+        raise HTTPException(status_code=500, detail="Bot not initialized")
+    
     return {
         "bot_status": "Active",
-        "webhook_url": f"{os.getenv('WEBHOOK_BASE')}/webhook",
+        "webhook_url": os.getenv("WEBHOOK_BASE", "https://your-ngrok-url.ngrok.io/webhook"),
         "allowed_users": bot.allowed_user_ids,
         "owner_users": bot.owner_telegram_ids,
-                        "monitoring_active": True,
-                "rag_ready": True,  # RAG is now implemented
+        "monitoring_active": True,
+        "rag_ready": rag_service is not None,
         "timestamp": datetime.utcnow().isoformat()
     }
 
 @app.post("/webhook")
-async def telegram_webhook(request: Request):
-    """Handle Telegram webhook updates."""
+async def webhook(request: Request):
+    """Handle Telegram webhook."""
     try:
-        # Parse the update
         update_data = await request.json()
-        logger.info(f"Received webhook update: {update_data.get('update_id', 'unknown')}")
+        update_id = update_data.get("update_id", "unknown")
+        logger.info(f"Received webhook update: {update_id}")
         
-        # Process the update
-        await bot.handle_update(update_data)
-        
-        return JSONResponse(content={"status": "ok"})
-        
+        if bot:
+            await bot.handle_update(update_data)
+            return {"status": "ok"}
+        else:
+            logger.error("Bot not initialized")
+            return {"status": "error", "message": "Bot not initialized"}
+            
     except Exception as e:
-        logger.error(f"Webhook error: {e}")
-        raise HTTPException(status_code=500, detail="Webhook processing failed")
+        logger.error(f"Error processing webhook: {e}")
+        return {"status": "error", "message": str(e)}
 
 @app.post("/set-webhook")
 async def set_webhook():
-    """Set the Telegram webhook URL."""
+    """Set webhook URL."""
     try:
-        webhook_base = os.getenv("WEBHOOK_BASE")
-        if not webhook_base:
-            raise HTTPException(status_code=400, detail="WEBHOOK_BASE not configured")
-        
-        webhook_url = f"{webhook_base}/webhook"
-        
-        # Set webhook
-        await bot.set_webhook(webhook_url)
-        
-        return JSONResponse(content={
-            "status": "success",
-            "webhook_url": webhook_url
-        })
-        
+        webhook_url = os.getenv("WEBHOOK_BASE", "") + "/webhook"
+        if bot:
+            await bot.set_webhook(webhook_url)
+            return {"status": "ok", "webhook_url": webhook_url}
+        else:
+            return {"status": "error", "message": "Bot not initialized"}
     except Exception as e:
-        logger.error(f"Set webhook error: {e}")
-        raise HTTPException(status_code=500, detail="Failed to set webhook")
+        logger.error(f"Failed to set webhook: {e}")
+        return {"status": "error", "message": str(e)}
 
 @app.delete("/webhook")
 async def delete_webhook():
-    """Delete the Telegram webhook."""
+    """Delete webhook."""
     try:
-        await bot.delete_webhook()
-        return JSONResponse(content={"status": "success", "message": "Webhook deleted"})
+        if bot:
+            await bot.delete_webhook()
+            return {"status": "ok"}
+        else:
+            return {"status": "error", "message": "Bot not initialized"}
+    except Exception as e:
+        logger.error(f"Failed to delete webhook: {e}")
+        return {"status": "error", "message": str(e)}
+
+@app.get("/debug/rag")
+async def debug_rag():
+    """Debug endpoint to test RAG service directly."""
+    try:
+        if not rag_service:
+            return {"status": "error", "message": "RAG service not initialized"}
+        
+        # Test basic RAG functionality
+        test_question = "What is OnlyAi?"
+        user_id = 12345
+        
+        logger.info("Testing RAG service...")
+        
+        # Test configuration
+        config_status = {
+            "openai_api_key": "present" if os.getenv("OPENAI_API_KEY") else "missing",
+            "openai_model": rag_service.openai_model,
+            "embed_model": rag_service.embed_model
+        }
+        
+        # Test knowledge base
+        try:
+            kb_results = rag_service.search_knowledge_base(test_question, limit=1)
+            kb_status = f"Found {len(kb_results)} results"
+        except Exception as e:
+            kb_status = f"Error: {str(e)}"
+        
+        # Test messages
+        try:
+            messages = rag_service.get_relevant_messages(test_question, limit=1)
+            messages_status = f"Found {len(messages)} messages"
+        except Exception as e:
+            messages_status = f"Error: {str(e)}"
+        
+        # Test OpenAI call
+        try:
+            answer = await rag_service.answer_question(test_question, user_id)
+            openai_status = "Success"
+            answer_preview = answer[:100] + "..." if len(answer) > 100 else answer
+        except Exception as e:
+            openai_status = f"Error: {str(e)}"
+            answer_preview = None
+        
+        return {
+            "status": "ok",
+            "config": config_status,
+            "knowledge_base": kb_status,
+            "messages": messages_status,
+            "openai": openai_status,
+            "answer_preview": answer_preview,
+            "timestamp": datetime.utcnow().isoformat()
+        }
         
     except Exception as e:
-        logger.error(f"Delete webhook error: {e}")
-        raise HTTPException(status_code=500, detail="Failed to delete webhook")
+        logger.error(f"Debug RAG error: {e}")
+        return {"status": "error", "message": str(e)}
 
 if __name__ == "__main__":
     import uvicorn
