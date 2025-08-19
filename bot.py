@@ -227,7 +227,52 @@ class TelegramBot:
     
     async def _handle_help(self, message: types.Message):
         """Handle /help command."""
-        await self._handle_start(message)  # Same as start for now
+        try:
+            user_id = message.from_user.id
+            
+            if not self._is_allowed_user(user_id):
+                await message.reply(
+                    "❌ You are not authorized to use this bot.\n"
+                    "Please contact the administrator to get access."
+                )
+                return
+            
+            help_text = (
+                "🤖 **OnlyAi Support Bot - Help**\n\n"
+                "**Basic Commands:**\n"
+                "• `/start` - Welcome message\n"
+                "• `/test` - Check bot status\n"
+                "• `/status` - Detailed status report\n"
+                "• `/help` - Show this help message\n\n"
+                "**Knowledge Base Commands:**\n"
+                "• `/add_doc <title> | <content> | <category> | <tags>` - Add manual document\n"
+                "• `/upload_file` - Upload and process files (PDF, DOCX, TXT, videos)\n"
+                "• `/scrape_url <url> | <title> | <category> | <tags>` - Scrape website content\n"
+                "• `/search_docs <query>` - Search knowledge base\n"
+                "• `/list_docs` - List all documents\n\n"
+                "**Owner Commands:**\n"
+                "• `/groups` - View monitored groups\n"
+                "• `/monitor` - Activate group monitoring (use in group)\n"
+                "• `/messages` - View all stored messages\n"
+                "• `/group_messages` - View only group messages\n\n"
+                "**File Upload Instructions:**\n"
+                "1. Send a file (PDF, DOCX, TXT, video)\n"
+                "2. Add caption: `/upload_file | <title> | <category> | <tags>`\n"
+                "3. Bot will process and add to knowledge base\n\n"
+                "**Web Scraping Instructions:**\n"
+                "Format: `/scrape_url <url> | <title> | <category> | <tags>`\n"
+                "Example: `/scrape_url https://example.com | Website Title | legal | terms,policy`\n\n"
+                "**How to use:**\n"
+                "• Ask me questions directly\n"
+                "• Mention me in group chats: @onlyaisupportbot\n"
+                "• I'll provide answers based on our knowledge base and chat history"
+            )
+            
+            await message.reply(help_text, parse_mode="Markdown")
+            
+        except Exception as e:
+            logger.error(f"Error in help handler: {e}")
+            await message.reply("❌ Error processing help command.")
     
     async def _handle_status(self, message: types.Message):
         """Handle /status command."""
