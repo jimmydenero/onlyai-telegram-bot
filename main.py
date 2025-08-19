@@ -205,6 +205,60 @@ async def debug_simple():
             "timestamp": datetime.utcnow().isoformat()
         }
 
+@app.get("/debug/kb")
+async def debug_knowledge_base():
+    """Debug endpoint to inspect knowledge base contents."""
+    try:
+        if not rag_service:
+            return {"status": "error", "message": "RAG service not initialized"}
+        
+        import sqlite3
+        from pathlib import Path
+        
+        kb_path = Path("./knowledge_base/knowledge_base.db")
+        if not kb_path.exists():
+            return {"status": "error", "message": "Knowledge base database not found"}
+        
+        conn = sqlite3.connect(kb_path)
+        cursor = conn.cursor()
+        
+        # Get all documents
+        cursor.execute("SELECT id, title, content, category, tags, source_type, source_url, created_at FROM documents ORDER BY created_at DESC")
+        documents = cursor.fetchall()
+        
+        # Get document count
+        cursor.execute("SELECT COUNT(*) FROM documents")
+        count = cursor.fetchone()[0]
+        
+        conn.close()
+        
+        # Format results
+        docs = []
+        for doc in documents:
+            docs.append({
+                "id": doc[0],
+                "title": doc[1],
+                "content_preview": doc[2][:200] + "..." if len(doc[2]) > 200 else doc[2],
+                "content_length": len(doc[2]),
+                "category": doc[3],
+                "tags": doc[4],
+                "source_type": doc[5],
+                "source_url": doc[6],
+                "created_at": doc[7]
+            })
+        
+        return {
+            "status": "ok",
+            "total_documents": count,
+            "documents": docs,
+            "database_path": str(kb_path),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Debug KB error: {e}")
+        return {"status": "error", "message": str(e)}
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(
