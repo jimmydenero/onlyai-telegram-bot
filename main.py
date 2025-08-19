@@ -142,9 +142,9 @@ async def debug_rag():
         except Exception as e:
             messages_status = f"Error: {str(e)}"
         
-        # Test OpenAI call
+        # Test OpenAI call with simple test
         try:
-            answer = await rag_service.answer_question(test_question, user_id)
+            answer = await rag_service.simple_test(test_question, user_id)
             openai_status = "Success"
             answer_preview = answer[:100] + "..." if len(answer) > 100 else answer
         except Exception as e:

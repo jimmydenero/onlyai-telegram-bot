@@ -514,7 +514,7 @@ class RAGService:
         
         return "\n".join(context_parts)
     
-        async def answer_question(self, question: str, user_id: int, chat_type: str = "private") -> str:
+    async def answer_question(self, question: str, user_id: int, chat_type: str = "private") -> str:
         """Answer a question using RAG."""
         try:
             logger.info(f"🤖 Processing RAG question from user {user_id}: {question[:50]}...")
@@ -679,3 +679,32 @@ Provide a helpful answer based on the context and your knowledge about OnlyAi an
             logger.error(f"Error storing Q&A: {e}")
         finally:
             db.close()
+
+    async def simple_test(self, question: str, user_id: int) -> str:
+        """Simple test method to isolate OpenAI API issues."""
+        try:
+            logger.info(f"🧪 Simple test for user {user_id}: {question}")
+            
+            # Check OpenAI configuration
+            if not os.getenv("OPENAI_API_KEY"):
+                return "OpenAI API key missing"
+            
+            # Simple OpenAI call
+            client = openai.OpenAI()
+            response = client.chat.completions.create(
+                model="gpt-4",
+                messages=[
+                    {"role": "system", "content": "You are a helpful assistant."},
+                    {"role": "user", "content": question}
+                ],
+                max_tokens=100,
+                temperature=0.7
+            )
+            
+            answer = response.choices[0].message.content.strip()
+            logger.info(f"✅ Simple test successful: {answer[:50]}...")
+            return answer
+            
+        except Exception as e:
+            logger.error(f"❌ Simple test failed: {e}")
+            return f"Error: {str(e)}"
