@@ -517,125 +517,45 @@ class RAGService:
     async def answer_question(self, question: str, user_id: int, chat_type: str = "private") -> str:
         """Answer a question using RAG."""
         try:
-            logger.info(f"🤖 Processing RAG question from user {user_id}: {question[:50]}...")
+            logger.info(f"🤖 Processing question from user {user_id}: {question[:50]}...")
             
             # Check OpenAI configuration
             if not os.getenv("OPENAI_API_KEY"):
                 logger.error("OpenAI API key not found")
                 return "Sorry, I'm not properly configured. Please contact the administrator."
             
-            logger.info(f"Using OpenAI model: {self.openai_model}")
+            # Simple system prompt for now
+            system_prompt = """You are OnlyAi Support, the assistant for Jimmy Denero's "OnlyAi" (AI OnlyFans Management) community. 
             
-            # Get relevant context from messages and knowledge base
-            try:
-                relevant_messages = self.get_relevant_messages(question, limit=4, hours_back=24)
-                logger.info(f"Found {len(relevant_messages)} relevant messages")
-            except Exception as e:
-                logger.error(f"Error getting relevant messages: {e}")
-                relevant_messages = []
+            Provide helpful, practical answers about OnlyAi and AI topics. Be conversational and professional.
             
-            try:
-                kb_results = self.search_knowledge_base(question, limit=2)
-                logger.info(f"Found {len(kb_results)} knowledge base results")
-            except Exception as e:
-                logger.error(f"Error searching knowledge base: {e}")
-                kb_results = []
+            If the user greets you, ask what they need help with.
+            If you don't know something, say so and suggest where they might find the information.
+            Keep answers concise and actionable."""
             
-            context = self.format_context(relevant_messages)
-            kb_context = self.format_kb_context(kb_results)
+            # Simple user prompt
+            user_prompt = f"Question: {question}\n\nProvide a helpful answer about OnlyAi and AI topics."
             
-            # Combine contexts
-            full_context = ""
-            if kb_context:
-                full_context += kb_context + "\n\n"
-            if context:
-                full_context += "Recent chat context:\n" + context
-
-            logger.info(f"Context length: {len(full_context)} characters")
-
-            # Create system prompt
-            system_prompt = """Role
-You are OnlyAi Support, the assistant for Jimmy Denero's "OnlyAi" (AI OnlyFans Management) community. Your job is to deliver accurate, practical answers that feel natural and human—not robotic—by drawing on: (1) the curated knowledge base, (2) monitored group chat history, and (3) prior conversations.
-
-Source priority
-	1.	Use retrieved snippets from the OnlyAi knowledge base first.
-	2.	Add context from recent group chat and past Q&A.
-	3.	Use general knowledge only to fill small gaps. If a fact is uncertain, say so.
-
-Style and tone
-• Smooth, human, and professional.
-• Short, clear sentences; no fluff.
-• Prefer direct answers followed by 1–3 actionable steps or a brief rationale.
-• Use the user's wording and context to stay conversational.
-• No emojis or over-politeness.
-• Avoid sounding like a chatbot or repeating the question.
-
-Interaction rules
-• If the user greets ("hey", "hello", "help"), reply with a short, neutral opener and a targeted prompt, e.g., "Hi—what do you need help with in OnlyAi?"
-• If the query is vague, ask exactly one clarifying question that moves the conversation forward.
-• If you don't know, say "I don't have that information" and suggest one next step.
-• Keep answers compact; if the topic is complex, give a brief summary and offer to go deeper.
-• When relevant, reference the source briefly (short title/filename); do not quote or expose full private documents.
-
-Output format
-• Start with the answer in 1–3 short sentences.
-• Optionally add a tiny "Next steps" list (up to 3 bullets).
-• If applicable, add a compact "Sources: name1, name2".
-• Stay under ~250 words by default; shorter is better.
-
-Safety and privacy
-• Never reveal secrets, tokens, internal links, or full document contents.
-• Redact personal data if it appears.
-• Do not invent KPIs, pricing, or policies—confirm from KB or say you lack the info.
-
-Retrieval guidance
-• Retrieve top-k KB chunks (dedupe by source), plus a short window of recent group messages if relevant.
-• Prefer canonical SOPs over ad-hoc chat messages.
-• If sources conflict, state the current recommended practice per the most recent/authoritative doc.
-
-Examples of behavior
-• Greeting: "Hi—what do you need help with in OnlyAi?"
-• Unclear ask: "Which part—account setup, content pipeline, or chat ops?"
-• Unknown: "I don't have that information. Check the latest 'OnlyAi Payout SOP' or share the exact account."
-• Direct guidance: "Run the warm-up sequence first, then split-test two bio hooks. Next steps: (1) Enable shadowban check, (2) Launch 3 creative variants, (3) Review CPC after 24h."
-
-Success criteria
-The response is accurate, grounded in OnlyAi sources, short, natural, and immediately useful, with a clear next step when needed."""
-
-            # Create user prompt
-            user_prompt = f"""Question: {question}
-
-{full_context}
-
-Provide a helpful answer based on the context and your knowledge about OnlyAi and AI topics. Follow the system instructions for style, tone, and format."""
-
-            # Call OpenAI (optimized for speed)
+            # Call OpenAI
             logger.info("Calling OpenAI API...")
             client = openai.OpenAI()
             response = client.chat.completions.create(
-                model=self.openai_model,
+                model="gpt-4",
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt}
                 ],
-                max_tokens=150,  # Reduced for faster responses
-                temperature=0.5,  # Lower temperature for more consistent, faster responses
-                timeout=10  # Add timeout to prevent hanging
+                max_tokens=200,
+                temperature=0.7
             )
             
             answer = response.choices[0].message.content.strip()
-            logger.info(f"✅ Generated RAG answer for user {user_id}: {answer[:50]}...")
+            logger.info(f"✅ Generated answer for user {user_id}: {answer[:50]}...")
             return answer
             
         except Exception as e:
-            logger.error(f"Error in RAG answer generation: {e}")
-            # Provide more specific error information for debugging
-            if "openai" in str(e).lower():
-                return "Sorry, I'm having trouble connecting to the AI service. Please try again later."
-            elif "database" in str(e).lower() or "sqlite" in str(e).lower():
-                return "Sorry, I'm having trouble accessing the knowledge base. Please try again later."
-            else:
-                return "Sorry, I'm having trouble processing your question right now. Please try again later."
+            logger.error(f"Error in answer generation: {e}")
+            return f"Sorry, I'm having trouble processing your question. Error: {str(e)[:100]}"
     
     def store_question_answer(self, question: str, answer: str, user_id: int, chat_type: str):
         """Store Q&A for future reference."""
