@@ -514,7 +514,7 @@ class RAGService:
         
         return "\n".join(context_parts)
     
-    async def answer_question(self, question: str, user_id: int, chat_type: str = "private") -> str:
+        async def answer_question(self, question: str, user_id: int, chat_type: str = "private") -> str:
         """Answer a question using RAG."""
         try:
             logger.info(f"🤖 Processing RAG question from user {user_id}: {question[:50]}...")
@@ -611,26 +611,21 @@ Provide a helpful answer based on the context and your knowledge about OnlyAi an
 
             # Call OpenAI (optimized for speed)
             logger.info("Calling OpenAI API...")
-            try:
-                client = openai.OpenAI()
-                response = client.chat.completions.create(
-                    model=self.openai_model,
-                    messages=[
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": user_prompt}
-                    ],
-                    max_tokens=150,  # Reduced for faster responses
-                    temperature=0.5,  # Lower temperature for more consistent, faster responses
-                    timeout=10  # Add timeout to prevent hanging
-                )
-                
-                answer = response.choices[0].message.content.strip()
-                logger.info(f"✅ Generated RAG answer for user {user_id}: {answer[:50]}...")
-                return answer
-                
-            except Exception as openai_error:
-                logger.error(f"OpenAI API error: {openai_error}")
-                raise openai_error
+            client = openai.OpenAI()
+            response = client.chat.completions.create(
+                model=self.openai_model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
+                ],
+                max_tokens=150,  # Reduced for faster responses
+                temperature=0.5,  # Lower temperature for more consistent, faster responses
+                timeout=10  # Add timeout to prevent hanging
+            )
+            
+            answer = response.choices[0].message.content.strip()
+            logger.info(f"✅ Generated RAG answer for user {user_id}: {answer[:50]}...")
+            return answer
             
         except Exception as e:
             logger.error(f"Error in RAG answer generation: {e}")

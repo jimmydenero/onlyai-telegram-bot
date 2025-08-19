@@ -165,6 +165,46 @@ async def debug_rag():
         logger.error(f"Debug RAG error: {e}")
         return {"status": "error", "message": str(e)}
 
+@app.get("/debug/simple")
+async def debug_simple():
+    """Simple test endpoint to isolate OpenAI API call."""
+    try:
+        import openai
+        
+        # Check API key
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            return {"status": "error", "message": "OpenAI API key missing"}
+        
+        # Simple test call
+        client = openai.OpenAI()
+        response = client.chat.completions.create(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant."},
+                {"role": "user", "content": "Say hello"}
+            ],
+            max_tokens=50,
+            temperature=0.7
+        )
+        
+        answer = response.choices[0].message.content.strip()
+        
+        return {
+            "status": "success",
+            "answer": answer,
+            "model": "gpt-4",
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        return {
+            "status": "error", 
+            "message": str(e),
+            "error_type": type(e).__name__,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(
