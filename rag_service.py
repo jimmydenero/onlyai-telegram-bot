@@ -369,25 +369,44 @@ class RAGService:
             conn = sqlite3.connect(self.kb_db_path)
             cursor = conn.cursor()
             
+            # Check if source_type column exists
+            cursor.execute("PRAGMA table_info(documents)")
+            columns = [column[1] for column in cursor.fetchall()]
+            has_source_type = 'source_type' in columns
+            has_source_url = 'source_url' in columns
+            
             # Simple keyword-based search (can be enhanced with semantic search)
             query_terms = query.lower().split()
             
-            # Search in document titles and content
-            cursor.execute('''
-                SELECT d.id, d.title, d.content, d.category, d.tags, d.source_type, d.source_url,
-                       e.chunk_text, e.chunk_index
-                FROM documents d
-                LEFT JOIN embeddings e ON d.id = e.document_id
-                WHERE LOWER(d.title) LIKE ? OR LOWER(d.content) LIKE ?
-                ORDER BY d.updated_at DESC
-                LIMIT ?
-            ''', (f'%{query}%', f'%{query}%', limit * 3))
+            # Build query based on available columns
+            if has_source_type and has_source_url:
+                cursor.execute('''
+                    SELECT d.id, d.title, d.content, d.category, d.tags, d.source_type, d.source_url
+                    FROM documents d
+                    WHERE LOWER(d.title) LIKE ? OR LOWER(d.content) LIKE ?
+                    ORDER BY d.updated_at DESC
+                    LIMIT ?
+                ''', (f'%{query}%', f'%{query}%', limit * 3))
+            else:
+                # Fallback for older schema
+                cursor.execute('''
+                    SELECT d.id, d.title, d.content, d.category, d.tags
+                    FROM documents d
+                    WHERE LOWER(d.title) LIKE ? OR LOWER(d.content) LIKE ?
+                    ORDER BY d.updated_at DESC
+                    LIMIT ?
+                ''', (f'%{query}%', f'%{query}%', limit * 3))
             
             results = []
             seen_docs = set()
             
             for row in cursor.fetchall():
-                doc_id, title, content, category, tags, source_type, source_url, chunk_text, chunk_index = row
+                if has_source_type and has_source_url:
+                    doc_id, title, content, category, tags, source_type, source_url = row
+                else:
+                    doc_id, title, content, category, tags = row
+                    source_type = 'manual'
+                    source_url = None
                 
                 if doc_id not in seen_docs and len(results) < limit:
                     # Score based on keyword matches
@@ -590,7 +609,13 @@ Provide a helpful answer based on the context and your knowledge about OnlyAi an
             
         except Exception as e:
             logger.error(f"Error in RAG answer generation: {e}")
-            return "Sorry, I'm having trouble processing your question right now. Please try again later."
+            # Provide more specific error information for debugging
+            if "openai" in str(e).lower():
+                return "Sorry, I'm having trouble connecting to the AI service. Please try again later."
+            elif "database" in str(e).lower() or "sqlite" in str(e).lower():
+                return "Sorry, I'm having trouble accessing the knowledge base. Please try again later."
+            else:
+                return "Sorry, I'm having trouble processing your question right now. Please try again later."
     
     def store_question_answer(self, question: str, answer: str, user_id: int, chat_type: str):
         """Store Q&A for future reference."""
