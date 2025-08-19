@@ -374,28 +374,47 @@ class RAGService:
             columns = [column[1] for column in cursor.fetchall()]
             has_source_type = 'source_type' in columns
             has_source_url = 'source_url' in columns
+            has_updated_at = 'updated_at' in columns
             
             # Simple keyword-based search (can be enhanced with semantic search)
             query_terms = query.lower().split()
             
             # Build query based on available columns
             if has_source_type and has_source_url:
-                cursor.execute('''
-                    SELECT d.id, d.title, d.content, d.category, d.tags, d.source_type, d.source_url
-                    FROM documents d
-                    WHERE LOWER(d.title) LIKE ? OR LOWER(d.content) LIKE ?
-                    ORDER BY d.updated_at DESC
-                    LIMIT ?
-                ''', (f'%{query}%', f'%{query}%', limit * 3))
+                if has_updated_at:
+                    cursor.execute('''
+                        SELECT d.id, d.title, d.content, d.category, d.tags, d.source_type, d.source_url
+                        FROM documents d
+                        WHERE LOWER(d.title) LIKE ? OR LOWER(d.content) LIKE ?
+                        ORDER BY d.updated_at DESC
+                        LIMIT ?
+                    ''', (f'%{query}%', f'%{query}%', limit * 3))
+                else:
+                    cursor.execute('''
+                        SELECT d.id, d.title, d.content, d.category, d.tags, d.source_type, d.source_url
+                        FROM documents d
+                        WHERE LOWER(d.title) LIKE ? OR LOWER(d.content) LIKE ?
+                        ORDER BY d.created_at DESC
+                        LIMIT ?
+                    ''', (f'%{query}%', f'%{query}%', limit * 3))
             else:
                 # Fallback for older schema
-                cursor.execute('''
-                    SELECT d.id, d.title, d.content, d.category, d.tags
-                    FROM documents d
-                    WHERE LOWER(d.title) LIKE ? OR LOWER(d.content) LIKE ?
-                    ORDER BY d.updated_at DESC
-                    LIMIT ?
-                ''', (f'%{query}%', f'%{query}%', limit * 3))
+                if has_updated_at:
+                    cursor.execute('''
+                        SELECT d.id, d.title, d.content, d.category, d.tags
+                        FROM documents d
+                        WHERE LOWER(d.title) LIKE ? OR LOWER(d.content) LIKE ?
+                        ORDER BY d.updated_at DESC
+                        LIMIT ?
+                    ''', (f'%{query}%', f'%{query}%', limit * 3))
+                else:
+                    cursor.execute('''
+                        SELECT d.id, d.title, d.content, d.category, d.tags
+                        FROM documents d
+                        WHERE LOWER(d.title) LIKE ? OR LOWER(d.content) LIKE ?
+                        ORDER BY d.created_at DESC
+                        LIMIT ?
+                    ''', (f'%{query}%', f'%{query}%', limit * 3))
             
             results = []
             seen_docs = set()
