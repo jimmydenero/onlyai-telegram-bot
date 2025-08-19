@@ -356,6 +356,28 @@ async def debug_test_scrape():
         logger.error(f"Debug test scrape error: {e}")
         return {"status": "error", "message": str(e)}
 
+@app.get("/debug/search/{query}")
+async def debug_search(query: str):
+    """Test endpoint to search knowledge base with specific queries."""
+    try:
+        if not rag_service:
+            return {"status": "error", "message": "RAG service not initialized"}
+        
+        # Test the search
+        results = rag_service.search_knowledge_base(query, limit=5)
+        
+        return {
+            "status": "ok",
+            "query": query,
+            "results_count": len(results),
+            "results": results,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Debug search error: {e}")
+        return {"status": "error", "message": str(e)}
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(
