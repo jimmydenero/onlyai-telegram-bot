@@ -49,7 +49,7 @@ logger = logging.getLogger(__name__)
 
 # Configure OpenAI
 openai.api_key = os.getenv("OPENAI_API_KEY")
-OPENAI_MODEL = "gpt-4o"  # Use a valid model
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4")  # Use environment variable or default to gpt-4
 EMBED_MODEL = os.getenv("EMBED_MODEL", "text-embedding-3-small")
 
 class RAGService:
@@ -519,9 +519,27 @@ class RAGService:
         try:
             logger.info(f"🤖 Processing RAG question from user {user_id}: {question[:50]}...")
             
+            # Check OpenAI configuration
+            if not os.getenv("OPENAI_API_KEY"):
+                logger.error("OpenAI API key not found")
+                return "Sorry, I'm not properly configured. Please contact the administrator."
+            
+            logger.info(f"Using OpenAI model: {self.openai_model}")
+            
             # Get relevant context from messages and knowledge base
-            relevant_messages = self.get_relevant_messages(question, limit=4, hours_back=24)
-            kb_results = self.search_knowledge_base(question, limit=2)
+            try:
+                relevant_messages = self.get_relevant_messages(question, limit=4, hours_back=24)
+                logger.info(f"Found {len(relevant_messages)} relevant messages")
+            except Exception as e:
+                logger.error(f"Error getting relevant messages: {e}")
+                relevant_messages = []
+            
+            try:
+                kb_results = self.search_knowledge_base(question, limit=2)
+                logger.info(f"Found {len(kb_results)} knowledge base results")
+            except Exception as e:
+                logger.error(f"Error searching knowledge base: {e}")
+                kb_results = []
             
             context = self.format_context(relevant_messages)
             kb_context = self.format_kb_context(kb_results)
@@ -532,6 +550,8 @@ class RAGService:
                 full_context += kb_context + "\n\n"
             if context:
                 full_context += "Recent chat context:\n" + context
+
+            logger.info(f"Context length: {len(full_context)} characters")
 
             # Create system prompt
             system_prompt = """Role
@@ -590,22 +610,27 @@ The response is accurate, grounded in OnlyAi sources, short, natural, and immedi
 Provide a helpful answer based on the context and your knowledge about OnlyAi and AI topics. Follow the system instructions for style, tone, and format."""
 
             # Call OpenAI (optimized for speed)
-            client = openai.OpenAI()
-            response = client.chat.completions.create(
-                model=self.openai_model,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt}
-                ],
-                max_tokens=150,  # Reduced for faster responses
-                temperature=0.5,  # Lower temperature for more consistent, faster responses
-                timeout=10  # Add timeout to prevent hanging
-            )
-            
-            answer = response.choices[0].message.content.strip()
-            
-            logger.info(f"✅ Generated RAG answer for user {user_id}")
-            return answer
+            logger.info("Calling OpenAI API...")
+            try:
+                client = openai.OpenAI()
+                response = client.chat.completions.create(
+                    model=self.openai_model,
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt}
+                    ],
+                    max_tokens=150,  # Reduced for faster responses
+                    temperature=0.5,  # Lower temperature for more consistent, faster responses
+                    timeout=10  # Add timeout to prevent hanging
+                )
+                
+                answer = response.choices[0].message.content.strip()
+                logger.info(f"✅ Generated RAG answer for user {user_id}: {answer[:50]}...")
+                return answer
+                
+            except Exception as openai_error:
+                logger.error(f"OpenAI API error: {openai_error}")
+                raise openai_error
             
         except Exception as e:
             logger.error(f"Error in RAG answer generation: {e}")
