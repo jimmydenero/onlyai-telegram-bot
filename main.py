@@ -378,6 +378,56 @@ async def debug_search(query: str):
         logger.error(f"Debug search error: {e}")
         return {"status": "error", "message": str(e)}
 
+@app.get("/debug/db-query")
+async def debug_db_query():
+    """Direct database query to see what's in the documents table."""
+    try:
+        import sqlite3
+        from pathlib import Path
+        
+        kb_path = Path("./knowledge_base/knowledge_base.db")
+        if not kb_path.exists():
+            return {"status": "error", "message": "Knowledge base database not found"}
+        
+        conn = sqlite3.connect(kb_path)
+        cursor = conn.cursor()
+        
+        # Get table schema
+        cursor.execute("PRAGMA table_info(documents)")
+        schema = cursor.fetchall()
+        
+        # Get all documents with raw data
+        cursor.execute("SELECT * FROM documents")
+        all_docs = cursor.fetchall()
+        
+        # Get column names
+        cursor.execute("SELECT * FROM documents LIMIT 1")
+        columns = [description[0] for description in cursor.description]
+        
+        # Test a simple LIKE query
+        cursor.execute("SELECT COUNT(*) FROM documents WHERE LOWER(title) LIKE '%fanvue%'")
+        fanvue_count = cursor.fetchone()[0]
+        
+        cursor.execute("SELECT COUNT(*) FROM documents WHERE LOWER(content) LIKE '%fanvue%'")
+        fanvue_content_count = cursor.fetchone()[0]
+        
+        conn.close()
+        
+        return {
+            "status": "ok",
+            "schema": schema,
+            "columns": columns,
+            "total_documents": len(all_docs),
+            "fanvue_in_title_count": fanvue_count,
+            "fanvue_in_content_count": fanvue_content_count,
+            "sample_doc": all_docs[0] if all_docs else None,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Debug DB query error: {e}")
+        return {"status": "error", "message": str(e)}
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(
