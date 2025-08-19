@@ -328,9 +328,9 @@ class RAGService:
             for i, chunk in enumerate(chunks):
                 # For now, store chunks without embeddings (can be enhanced later)
                 cursor.execute('''
-                    INSERT INTO embeddings (document_id, chunk_text, chunk_index)
-                    VALUES (?, ?, ?)
-                ''', (document_id, chunk, i))
+                    INSERT INTO embeddings (document_id, chunk_text, chunk_index, embedding)
+                    VALUES (?, ?, ?, ?)
+                ''', (document_id, chunk, i, None))
             
             conn.commit()
             conn.close()
