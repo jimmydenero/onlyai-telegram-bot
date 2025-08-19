@@ -13,12 +13,34 @@ import openai
 from dotenv import load_dotenv
 import sqlite3
 from pathlib import Path
-import PyPDF2
-import docx
-from bs4 import BeautifulSoup
 import re
 import tempfile
 import subprocess
+
+# Optional imports with fallbacks
+try:
+    import PyPDF2
+    PDF_AVAILABLE = True
+except ImportError:
+    PDF_AVAILABLE = False
+    logger = logging.getLogger(__name__)
+    logger.warning("PyPDF2 not available - PDF processing disabled")
+
+try:
+    import docx
+    DOCX_AVAILABLE = True
+except ImportError:
+    DOCX_AVAILABLE = False
+    logger = logging.getLogger(__name__)
+    logger.warning("python-docx not available - DOCX processing disabled")
+
+try:
+    from bs4 import BeautifulSoup
+    BEAUTIFULSOUP_AVAILABLE = True
+except ImportError:
+    BEAUTIFULSOUP_AVAILABLE = False
+    logger = logging.getLogger(__name__)
+    logger.warning("BeautifulSoup not available - web scraping disabled")
 
 from models import SessionLocal, Message
 
@@ -84,6 +106,10 @@ class RAGService:
     
     def scrape_website(self, url: str) -> Optional[str]:
         """Scrape content from a website."""
+        if not BEAUTIFULSOUP_AVAILABLE:
+            logger.error("BeautifulSoup not available - web scraping disabled")
+            return None
+            
         try:
             headers = {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
@@ -118,6 +144,10 @@ class RAGService:
     
     def process_pdf(self, file_path: str) -> Optional[str]:
         """Extract text from PDF file."""
+        if not PDF_AVAILABLE:
+            logger.error("PyPDF2 not available - PDF processing disabled")
+            return None
+            
         try:
             with open(file_path, 'rb') as file:
                 pdf_reader = PyPDF2.PdfReader(file)
@@ -134,6 +164,10 @@ class RAGService:
     
     def process_docx(self, file_path: str) -> Optional[str]:
         """Extract text from DOCX file."""
+        if not DOCX_AVAILABLE:
+            logger.error("python-docx not available - DOCX processing disabled")
+            return None
+            
         try:
             doc = docx.Document(file_path)
             text = ""
