@@ -299,6 +299,63 @@ async def debug_add_test_document():
         logger.error(f"Debug add test doc error: {e}")
         return {"status": "error", "message": str(e)}
 
+@app.post("/debug/test-scrape")
+async def debug_test_scrape():
+    """Test endpoint to simulate scraping and see where it fails."""
+    try:
+        if not rag_service:
+            return {"status": "error", "message": "RAG service not initialized"}
+        
+        # Test URL (a simple website)
+        test_url = "https://httpbin.org/html"
+        
+        # Test scraping
+        try:
+            scraped_result = rag_service.scrape_website(test_url)
+            if scraped_result:
+                title, content = scraped_result
+                scrape_status = "Success"
+                content_length = len(content) if content else 0
+            else:
+                scrape_status = "Failed - returned None"
+                title = None
+                content = None
+                content_length = 0
+        except Exception as e:
+            scrape_status = f"Error: {str(e)}"
+            title = None
+            content = None
+            content_length = 0
+        
+        # Test adding scraped content
+        if title and content:
+            try:
+                success = rag_service.add_document(
+                    title=title,
+                    content=content,
+                    category="test_scrape",
+                    tags=["test", "scrape"]
+                )
+                add_status = "Success" if success else "Failed"
+            except Exception as e:
+                add_status = f"Error: {str(e)}"
+        else:
+            add_status = "Skipped - no content"
+        
+        return {
+            "status": "ok",
+            "test_url": test_url,
+            "scrape_status": scrape_status,
+            "title": title,
+            "content_length": content_length,
+            "add_status": add_status,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Debug test scrape error: {e}")
+        return {"status": "error", "message": str(e)}
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(
