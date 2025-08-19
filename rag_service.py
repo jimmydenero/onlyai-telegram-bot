@@ -538,12 +538,8 @@ class RAGService:
             
             # Call OpenAI
             logger.info("Calling OpenAI API...")
-            api_key = os.getenv("OPENAI_API_KEY")
-            if not api_key:
-                raise ValueError("OpenAI API key not found in environment")
-            
-            client = openai.OpenAI(api_key=api_key)
-            response = client.chat.completions.create(
+            openai.api_key = os.getenv("OPENAI_API_KEY")
+            response = openai.ChatCompletion.create(
                 model="gpt-4",
                 messages=[
                     {"role": "system", "content": system_prompt},
@@ -614,8 +610,8 @@ class RAGService:
                 return "OpenAI API key missing"
             
             # Simple OpenAI call
-            client = openai.OpenAI()
-            response = client.chat.completions.create(
+            openai.api_key = os.getenv("OPENAI_API_KEY")
+            response = openai.ChatCompletion.create(
                 model="gpt-4",
                 messages=[
                     {"role": "system", "content": "You are a helpful assistant."},
