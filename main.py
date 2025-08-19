@@ -428,6 +428,43 @@ async def debug_db_query():
         logger.error(f"Debug DB query error: {e}")
         return {"status": "error", "message": str(e)}
 
+@app.get("/debug/tables")
+async def debug_tables():
+    """Check what tables exist in the database."""
+    try:
+        import sqlite3
+        from pathlib import Path
+        
+        kb_path = Path("./knowledge_base/knowledge_base.db")
+        if not kb_path.exists():
+            return {"status": "error", "message": "Knowledge base database not found"}
+        
+        conn = sqlite3.connect(kb_path)
+        cursor = conn.cursor()
+        
+        # Get all tables
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
+        tables = [row[0] for row in cursor.fetchall()]
+        
+        # Check if embeddings table exists and has schema
+        embeddings_schema = None
+        if 'embeddings' in tables:
+            cursor.execute("PRAGMA table_info(embeddings)")
+            embeddings_schema = cursor.fetchall()
+        
+        conn.close()
+        
+        return {
+            "status": "ok",
+            "tables": tables,
+            "embeddings_schema": embeddings_schema,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Debug tables error: {e}")
+        return {"status": "error", "message": str(e)}
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(
