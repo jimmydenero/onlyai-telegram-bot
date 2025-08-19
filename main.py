@@ -259,6 +259,46 @@ async def debug_knowledge_base():
         logger.error(f"Debug KB error: {e}")
         return {"status": "error", "message": str(e)}
 
+@app.post("/debug/add-test-doc")
+async def debug_add_test_document():
+    """Test endpoint to manually add a document to the knowledge base."""
+    try:
+        if not rag_service:
+            return {"status": "error", "message": "RAG service not initialized"}
+        
+        # Test document
+        test_title = "Test Document"
+        test_content = "This is a test document to verify database insertion works."
+        test_category = "test"
+        test_tags = ["test", "debug"]
+        
+        # Try to add the document
+        success = rag_service.add_document(
+            title=test_title,
+            content=test_content,
+            category=test_category,
+            tags=test_tags
+        )
+        
+        if success:
+            return {
+                "status": "success",
+                "message": "Test document added successfully",
+                "title": test_title,
+                "content_length": len(test_content),
+                "timestamp": datetime.utcnow().isoformat()
+            }
+        else:
+            return {
+                "status": "error",
+                "message": "Failed to add test document",
+                "timestamp": datetime.utcnow().isoformat()
+            }
+        
+    except Exception as e:
+        logger.error(f"Debug add test doc error: {e}")
+        return {"status": "error", "message": str(e)}
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(
